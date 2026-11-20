@@ -26,7 +26,7 @@ td,th{padding:3px 14px;border-bottom:1px solid #0002}
 <div id="wrap"><div id="stage"><canvas id="c"></canvas><div id="ov"></div></div></div>
 <script>
 (function(){
-var W=960,H=540,G=900,R=5.5,MAXD=75,K=950/MAXD,HOLES=5,ST=4;
+var W=960,H=540,G=900,R=5.5,MAXD=75,K=950/MAXD,HOLES=5,ST=4,SAND=.7;
 var cv=document.getElementById('c'),ctx=cv.getContext('2d'),ov=document.getElementById('ov'),stage=document.getElementById('stage');
 var sc=1,T=[],sand=[],cup=[],ball={},hole={},pond=null,rocks=[],trees=[],mts=[],zones=[];
 var state='intro',hi=0,scores=[],strokes=0,aim=null,still=0,rollT=0,toast='',toastT=0,sinkT=0,last={x:0,y:0};
@@ -62,7 +62,7 @@ function gen(n){
 }
 function resize(){var r=stage.getBoundingClientRect(),d=window.devicePixelRatio||1;cv.width=Math.round(r.width*d);cv.height=Math.round(r.height*d);sc=cv.width/W}
 function msg(t,ms){toast=t;toastT=ms||1.4}
-function shoot(vx,vy){last={x:ball.x,y:ball.y};var w=isSand(ball.x)?.55:1;ball.vx=vx*w;ball.vy=vy*w;strokes++;state='roll';still=0;rollT=0}
+function shoot(vx,vy){last={x:ball.x,y:ball.y};ball.vx=vx;ball.vy=vy;strokes++;state='roll';still=0;rollT=0}
 function oob(){var b=ball;b.x=70;b.y=getH(70)-R;b.vx=b.vy=0;strokes++;state='aim';still=0;msg('Out of bounds! +1 shot',1.6)}
 function seg(ax,ay,bx,by,e,fr,dt){var b=ball,ux=bx-ax,uy=by-ay,t=((b.x-ax)*ux+(b.y-ay)*uy)/(ux*ux+uy*uy);t=t<0?0:t>1?1:t;
   var cx=ax+ux*t,cy=ay+uy*t,dx=b.x-cx,dy=b.y-cy,d=Math.hypot(dx,dy);if(d>=R||d===0)return false;
@@ -111,7 +111,7 @@ function endHole(){
     document.getElementById('nx').onclick=function(e){e.stopPropagation();newRound()}}
 }
 function newRound(){hi=0;scores=[];ov.hidden=true;gen(0)}
-function aimVel(){var dx=(aim.px-aim.sx)/sc,dy=(aim.py-aim.sy)/sc,l=Math.hypot(dx,dy);if(l>MAXD){dx*=MAXD/l;dy*=MAXD/l;l=MAXD}return{vx:-dx*K,vy:-dy*K,len:l}}
+function aimVel(){var dx=(aim.px-aim.sx)/sc,dy=(aim.py-aim.sy)/sc,l=Math.hypot(dx,dy);if(l>MAXD){dx*=MAXD/l;dy*=MAXD/l;l=MAXD}var raw=l,w=isSand(ball.x)?SAND:1;return{vx:-dx*K*w,vy:-dy*K*w,len:l*w,raw:raw}}
 function pt(e){var r=cv.getBoundingClientRect();return[(e.clientX-r.left)*cv.width/r.width,(e.clientY-r.top)*cv.height/r.height]}
 stage.addEventListener('pointerdown',function(e){
   if(e.target.closest('button'))return;e.preventDefault();
@@ -119,7 +119,7 @@ stage.addEventListener('pointerdown',function(e){
   if(state!=='aim')return;var p=pt(e);
   aim={sx:p[0],sy:p[1],px:p[0],py:p[1],id:e.pointerId};try{stage.setPointerCapture(e.pointerId)}catch(x){}});
 stage.addEventListener('pointermove',function(e){if(!aim||e.pointerId!==aim.id)return;var p=pt(e);aim.px=p[0];aim.py=p[1]});
-function rel(e,c){if(!aim||e.pointerId!==aim.id)return;var v=aimVel();aim=null;if(!c&&state==='aim'&&v.len>12)shoot(v.vx,v.vy)}
+function rel(e,c){if(!aim||e.pointerId!==aim.id)return;var v=aimVel();aim=null;if(!c&&state==='aim'&&v.raw>12)shoot(v.vx,v.vy)}
 stage.addEventListener('pointerup',function(e){rel(e,false)});
 stage.addEventListener('pointercancel',function(e){rel(e,true)});
 
@@ -166,7 +166,7 @@ function frame(t){
   draw();requestAnimationFrame(frame);
 }
 window.addEventListener('resize',resize);resize();gen(0);state='intro';
-showOv('<h1>Pullback Golf</h1><p>Press anywhere, pull back and release to shoot.<br>Dots show the start of your arc.</p><p>5 random holes. Fewest shots wins. Avoid water, sand and rocks.<br>Shots out of sand are less powerful.</p><button id="go">Tee off</button>');
+showOv('<h1>Pullback Golf</h1><p>Press anywhere, pull back and release to shoot.<br>Dots show the start of your arc.</p><p>5 random holes. Fewest shots wins. Avoid sand and rocks.<br>Shots out of sand are less powerful.</p><button id="go">Tee off</button>');
 document.getElementById('go').onclick=function(e){e.stopPropagation();ov.hidden=true;newRound()};
 requestAnimationFrame(frame);
 })();
