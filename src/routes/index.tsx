@@ -31,7 +31,7 @@ function GamesPage() {
             Insert coin
           </p>
           <h1 className="mt-3 max-w-2xl font-display text-5xl font-extrabold leading-[0.95] tracking-tight md:text-7xl">
-            Pick a game. Play it now.
+            UG Arcade
           </h1>
           <p className="mt-4 max-w-md text-muted-foreground">
             No downloads, no sign-ups. Every game runs right in your browser and goes fullscreen.
