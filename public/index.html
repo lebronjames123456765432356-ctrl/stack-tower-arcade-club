@@ -1,0 +1,66 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>UG Arcade</title>
+  <style>
+    body {
+      margin: 0;
+      padding: 40px 20px;
+      background: #10101b;
+      color: white;
+      font-family: Arial, sans-serif;
+      text-align: center;
+    }
+    h1 { font-size: 48px; margin-bottom: 10px; }
+    p { color: #aaa; }
+    .games {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 18px;
+      max-width: 850px;
+      margin: 40px auto;
+    }
+    a {
+      display: block;
+      padding: 30px 15px;
+      border: 1px solid #444;
+      border-radius: 14px;
+      background: #1d1d2b;
+      color: white;
+      text-decoration: none;
+      font-size: 22px;
+      font-weight: bold;
+    }
+    a:hover { background: #30304a; }
+    a span {
+      display: block;
+      margin-top: 12px;
+      color: #aaa;
+      font-size: 14px;
+      font-weight: normal;
+    }
+  </style>
+</head>
+<body>
+  <h1>UG Arcade</h1>
+  <p>No downloads. No sign-ups. Just play.</p>
+
+  <div class="games">
+    <a href="./games/stack-tower.html">
+      Stack Tower
+      <span>Drop, trim, climb.</span>
+    </a>
+    <a href="./games/hoop-streak.html">
+      Hoop Streak
+      <span>Pull back. Let go. Keep the streak.</span>
+    </a>
+    <a href="./games/pullback-golf.html">
+      Pullback Golf
+      <span>Pull back. Sink it. Mind the sand.</span>
+    </a>
+  </div>
+</body>
+</html>
