@@ -52,8 +52,8 @@ function gen(n){
   for(var k=0;k<ns;k++)for(tries=0;tries<25;tries++){w=rnd(70,110);s=rnd(160,hx-w-85);if(free(s,s+w)){
     for(var i=0;i<T.length;i++){var x=i*ST;if(x>=s&&x<=s+w){T[i]+=9*Math.sin(Math.PI*(x-s)/w);sand[i]=true}}
     zones.push([s,s+w]);break}}
-  var nr=0;
-  for(var k=0;k<nr;k++)for(tries=0;tries<25;tries++){var rx=rnd(200,hx-90),rr=rnd(13,20);if(free(rx-rr,rx+rr)){rocks.push({x:rx,y:getH(rx)-rr*.45,r:rr});zones.push([rx-rr,rx+rr]);break}}
+  var nr=1+(Math.random()<.6)+(n>1);
+  for(var k=0;k<nr;k++)for(tries=0;tries<25;tries++){var rx=rnd(200,hx-90),rr=rnd(6,10);if(free(rx-rr,rx+rr)){rocks.push({x:rx,y:getH(rx)-rr*.45,r:rr});zones.push([rx-rr,rx+rr]);break}}
   for(var i=0;i<T.length;i++)if(Math.abs(i*ST-hx)<=12){cup[i]=true}
   hole={x:hx,y:hy};
   for(var k=0;k<3;k++)mts.push({x:rnd(100,860),w:rnd(180,300),h:rnd(110,170)});
