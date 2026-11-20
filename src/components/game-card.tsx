@@ -4,6 +4,19 @@ import { Lock, Play } from "lucide-react";
 import type { Game } from "@/lib/games";
 
 function Thumb({ game }: { game: Game }) {
+  if (game.thumb === "hoop") {
+    return (
+      <div className="thumb-hoop aspect-[4/3] w-full">
+        <span className="board" />
+        <span className="rim" />
+        <span className="net" />
+        {Array.from({ length: 4 }).map((_, i) => (
+          <span key={i} className="dot" />
+        ))}
+        <span className="ball" />
+      </div>
+    );
+  }
   if (game.thumb === "stack") {
     return (
       <div className="thumb-stack aspect-[4/3] w-full">

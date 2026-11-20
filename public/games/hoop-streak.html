@@ -1,0 +1,567 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<title>Hoop Streak</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 100 100%27%3E%3Ctext y=%27.9em%27 font-size=%2790%27%3E🏀%3C/text%3E%3C/svg%3E">
+<style>
+[hidden] { display: none !important; }
+:root {
+  --bg: #0b0e15;
+  --ink: #eef1f7;
+  --muted: #a3acbf;
+  --panel: rgba(10, 13, 20, 0.8);
+  --line: rgba(255, 255, 255, 0.14);
+  --gold: #ffd86b;
+  --font: 'Space Grotesk', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+html, body { height: 100%; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--font);
+  padding-block: 12px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  overflow: hidden;
+  overscroll-behavior: none;
+}
+.stage {
+  position: relative;
+  height: 100%;
+  max-width: 460px;
+  margin: 0 auto;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  overflow: hidden;
+  cursor: crosshair;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+canvas { display: block; width: 100%; height: 100%; }
+.hud {
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  padding: 14px 14px 0;
+  text-align: center;
+  pointer-events: none;
+}
+.score {
+  font-size: clamp(3.5rem, 15vw, 5rem);
+  font-weight: 700;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  text-shadow: 0 2px 18px rgba(0, 0, 0, 0.45);
+}
+.score.pop { animation: pop 0.22s ease-out; }
+@keyframes pop { 0% { transform: scale(1.18); } 100% { transform: scale(1); } }
+.sub {
+  margin-top: 6px;
+  display: flex;
+  justify-content: center;
+  gap: 16px;
+  font-size: 0.8rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+.sub b { color: var(--ink); font-weight: 700; }
+.mute {
+  position: absolute;
+  top: 12px; right: 12px;
+  background: var(--panel);
+  color: var(--muted);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 6px 12px;
+  font: 500 0.75rem var(--font);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+.mute:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
+.toast {
+  position: absolute;
+  left: 0; right: 0;
+  top: 27%;
+  text-align: center;
+  font-weight: 700;
+  font-size: 1.35rem;
+  letter-spacing: 0.16em;
+  color: var(--gold);
+  text-shadow: 0 2px 14px rgba(0, 0, 0, 0.5);
+  opacity: 0;
+  pointer-events: none;
+}
+.toast.miss { color: #ff9a8a; }
+.toast small { display: block; margin-top: 4px; font-size: 0.8rem; letter-spacing: 0.12em; color: var(--ink); }
+.toast.show { animation: toast 1s ease-out; }
+@keyframes toast {
+  0% { opacity: 0; transform: translateY(10px) scale(0.92); }
+  15% { opacity: 1; transform: translateY(0) scale(1.05); }
+  70% { opacity: 1; transform: translateY(0) scale(1); }
+  100% { opacity: 0; transform: translateY(-14px) scale(1); }
+}
+.panel {
+  position: absolute;
+  left: 16px; right: 16px; bottom: 24px;
+  background: var(--panel);
+  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 20px;
+  text-align: center;
+}
+.panel h1 { margin: 0 0 8px; font-size: 1.6rem; letter-spacing: 0.02em; }
+.panel p { margin: 0; color: var(--muted); font-size: 0.95rem; line-height: 1.5; text-wrap: balance; }
+.panel p + p { margin-top: 6px; }
+.panel .kbd { color: var(--ink); font-weight: 700; }
+@media (prefers-reduced-motion: reduce) {
+  .score.pop { animation: none; }
+  .toast.show { animation: fade 1s linear; }
+  @keyframes fade { 0%, 80% { opacity: 1; } 100% { opacity: 0; } }
+}
+</style>
+</head>
+<body>
+
+<div class="stage" id="stage">
+  <canvas id="c" aria-label="Hoop Streak game field"></canvas>
+  <div class="hud">
+    <div class="score" id="score" aria-live="off">0</div>
+    <div class="sub"><span>Streak</span><span>Best <b id="best">0</b></span><span>Made <b id="made">0</b></span></div>
+  </div>
+  <button class="mute" id="mute" type="button" aria-pressed="false">Sound on</button>
+  <div class="toast" id="toast" aria-live="polite"></div>
+
+  <div class="panel" id="ready">
+    <h1>Hoop Streak</h1>
+    <p>Press, pull back and release to shoot. The dots show the start of your arc.</p>
+    <p>Every basket moves the hoop somewhere new, always within reach. A miss resets your streak.</p>
+    <p style="margin-top:12px"><span class="kbd">Drag anywhere</span> to take your first shot</p>
+  </div>
+</div>
+
+<script>
+(function () {
+  'use strict';
+  var stage = document.getElementById('stage');
+  var cv = document.getElementById('c');
+  var ctx = cv.getContext('2d');
+  var elScore = document.getElementById('score');
+  var elBest = document.getElementById('best');
+  var elMade = document.getElementById('made');
+  var elToast = document.getElementById('toast');
+  var elReady = document.getElementById('ready');
+  var btnMute = document.getElementById('mute');
+
+  // World: 360 units wide, y grows UP from the floor. Origin x is the center of the field.
+  var VW = 360, FLOOR = 70, G = 900, K = 5, MAXD = 160, VMAX = MAXD * K;
+  var BR = 11, RR = 19, RIM = 3.5, BX = -125, BY = 78, HUE0 = 205;
+  var cw = 0, ch = 0, dpr = 1, S = 1, VH = 640, H = 570;
+
+  var hoop = { x: 85, y: 170 }, hFrom, hTo, hT = 1;
+  var ball = { x: BX, y: BY, vx: 0, vy: 0, rot: 0, spin: 0 };
+  var state = 'ready', streak = 0, made = 0, best = 0, bgHue = HUE0;
+  var timer = 0, flyT = 0, scored = false, missed = false, rimHit = false, pendingMove = false;
+  var ballScale = 1, netT = 0, aim = null, last = 0, muted = false, audio = null;
+
+  try { best = parseInt(localStorage.getItem('hoopstreak-best'), 10) || 0; } catch (e) {}
+
+  function resize() {
+    var r = stage.getBoundingClientRect();
+    dpr = Math.min(window.devicePixelRatio || 1, 2);
+    cw = Math.max(1, r.width);
+    ch = Math.max(1, r.height);
+    cv.width = Math.round(cw * dpr);
+    cv.height = Math.round(ch * dpr);
+    S = cw / VW;
+    VH = ch / S;
+    H = VH - FLOOR;
+    var maxY = Math.min(300, H - 110);
+    if (hoop.y > maxY) { hoop.y = maxY; if (!feasible(hoop.x, hoop.y)) pickHoop(true); }
+  }
+
+  /* A hoop spot is fair when a shot at a comfortable power (under 85% of max) can drop
+     through it on a downward arc, at several different angles, without leaving the screen. */
+  function feasible(hx, hy) {
+    var dx = hx - BX, dy = hy - BY, ok = 0;
+    for (var a = 35; a <= 80; a += 2.5) {
+      var th = a * Math.PI / 180, c = Math.cos(th), t = Math.tan(th);
+      var d = dx * t - dy;
+      if (d <= 0) continue;
+      var v2 = G * dx * dx / (2 * c * c * d), v = Math.sqrt(v2);
+      if (v > VMAX * 0.85) continue;
+      var vx = v * c, vy = v * Math.sin(th) - G * dx / vx;
+      if (vy >= 0 || -vy / vx < 0.58) continue;
+      var apex = BY + (v * Math.sin(th)) * (v * Math.sin(th)) / (2 * G);
+      if (apex > H - 20) continue;
+      ok++;
+    }
+    return ok >= 3;
+  }
+
+  function pickHoop(instant) {
+    var maxY = Math.min(300, H - 110), nx, ny, i;
+    for (i = 0; i < 300; i++) {
+      nx = -10 + Math.random() * 130;
+      ny = 115 + Math.random() * (maxY - 115);
+      if (!feasible(nx, ny)) continue;
+      if (Math.hypot(nx - hoop.x, ny - hoop.y) < 70) continue;
+      break;
+    }
+    if (i === 300) { nx = 85; ny = 150; }
+    if (instant) { hoop.x = nx; hoop.y = ny; hT = 1; return; }
+    hFrom = { x: hoop.x, y: hoop.y };
+    hTo = { x: nx, y: ny };
+    hT = 0;
+  }
+
+  function resetBall() {
+    ball.x = BX; ball.y = BY; ball.vx = 0; ball.vy = 0; ball.spin = 0;
+    ballScale = 0;
+    scored = false; missed = false; rimHit = false; flyT = 0;
+    state = 'aim';
+  }
+
+  function updateHud(pop) {
+    elScore.textContent = streak;
+    elBest.textContent = best;
+    elMade.textContent = made;
+    if (pop) {
+      elScore.classList.remove('pop');
+      void elScore.offsetWidth;
+      elScore.classList.add('pop');
+    }
+  }
+
+  function showToast(main, sub, bad) {
+    elToast.innerHTML = '';
+    elToast.className = 'toast' + (bad ? ' miss' : '');
+    elToast.appendChild(document.createTextNode(main));
+    if (sub) {
+      var s = document.createElement('small');
+      s.textContent = sub;
+      elToast.appendChild(s);
+    }
+    void elToast.offsetWidth;
+    elToast.classList.add('show');
+  }
+
+  /* ---------- sound ---------- */
+  function ensureAudio() {
+    if (audio) { if (audio.state === 'suspended') { try { audio.resume(); } catch (e) {} } return; }
+    try { audio = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) { audio = null; }
+  }
+  function tone(freq, dur, type, vol) {
+    if (muted || !audio) return;
+    try {
+      var o = audio.createOscillator(), g = audio.createGain(), t = audio.currentTime;
+      o.type = type || 'sine';
+      o.frequency.value = freq;
+      g.gain.setValueAtTime(vol || 0.1, t);
+      g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+      o.connect(g); g.connect(audio.destination);
+      o.start(t); o.stop(t + dur);
+    } catch (e) {}
+  }
+  var SCALE = [0, 2, 4, 7, 9, 12, 14, 16];
+
+  /* ---------- game flow ---------- */
+  function shoot(vx, vy) {
+    ball.vx = vx; ball.vy = vy; ball.spin = -vx * 0.02;
+    state = 'fly';
+    tone(330, 0.12, 'triangle', 0.08);
+  }
+
+  function score() {
+    scored = true;
+    streak++; made++;
+    var wasBest = streak > best && best > 0 && streak === best + 1;
+    if (streak > best) {
+      best = streak;
+      try { localStorage.setItem('hoopstreak-best', String(best)); } catch (e) {}
+    }
+    ball.vx *= 0.3; ball.vy *= 0.55;
+    netT = 0.6;
+    pendingMove = true;
+    state = 'wait'; timer = 0.9;
+    showToast(rimHit ? 'BASKET' : 'SWISH', wasBest ? 'new best' : (streak > 1 ? streak + ' in a row' : ''));
+    tone(523.25 * Math.pow(2, SCALE[Math.min(streak - 1, SCALE.length - 1)] / 12), 0.4, 'triangle', 0.16);
+    updateHud(true);
+  }
+
+  function miss() {
+    missed = true;
+    if (streak > 0) showToast('MISS', streak + ' streak lost', true);
+    streak = 0;
+    pendingMove = false;
+    state = 'wait'; timer = 0.8;
+    tone(140, 0.4, 'sawtooth', 0.07);
+    updateHud(false);
+  }
+
+  /* ---------- physics ---------- */
+  function hitPoint(px, py) {
+    var dx = ball.x - px, dy = ball.y - py, d = Math.hypot(dx, dy), m = BR + RIM;
+    if (d >= m || d === 0) return;
+    var nx = dx / d, ny = dy / d;
+    ball.x = px + nx * m; ball.y = py + ny * m;
+    var vn = ball.vx * nx + ball.vy * ny;
+    if (vn < 0) {
+      ball.vx -= 1.8 * vn * nx;
+      ball.vy -= 1.8 * vn * ny;
+      ball.spin += (Math.random() - 0.5) * 6;
+      if (!rimHit || Math.abs(vn) > 60) tone(190 + Math.random() * 40, 0.12, 'square', 0.06);
+      rimHit = true;
+    }
+  }
+
+  function step(h) {
+    var prevY = ball.y;
+    ball.vy -= G * h;
+    ball.x += ball.vx * h;
+    ball.y += ball.vy * h;
+    ball.rot += ball.spin * h;
+
+    hitPoint(hoop.x - RR, hoop.y);
+    hitPoint(hoop.x + RR, hoop.y);
+
+    // backboard: left face at hoop.x + RR + 3, spans from just under the rim to 62 above it
+    var bx = hoop.x + RR + 3;
+    if (ball.y > hoop.y - 8 && ball.y < hoop.y + 62 + BR && ball.x + BR > bx && ball.x < bx + 6 && ball.vx > 0) {
+      ball.x = bx - BR;
+      ball.vx = -ball.vx * 0.8;
+      rimHit = true;
+      tone(150, 0.1, 'square', 0.06);
+    }
+
+    if (ball.y < BR) {
+      ball.y = BR;
+      if (ball.vy < -40) tone(110, 0.08, 'sine', 0.08);
+      ball.vy = -ball.vy * 0.7;
+      ball.vx *= 0.9;
+      if (Math.abs(ball.vy) < 25) ball.vy = 0;
+    }
+
+    if (state === 'fly') {
+      if (!scored && prevY > hoop.y && ball.y <= hoop.y && ball.vy < 0 &&
+          ball.x > hoop.x - RR && ball.x < hoop.x + RR) {
+        score();
+      } else if (ball.vy < 0 && ball.y < hoop.y - 30) {
+        miss();
+      } else if (Math.abs(ball.x) > VW / 2 + 30 || ball.y < BR + 0.5 && flyT > 0.1) {
+        miss();
+      }
+    }
+  }
+
+  function update(dt) {
+    if (hT < 1) {
+      hT = Math.min(1, hT + dt / 0.6);
+      var e = 1 - Math.pow(1 - hT, 3);
+      hoop.x = hFrom.x + (hTo.x - hFrom.x) * e;
+      hoop.y = hFrom.y + (hTo.y - hFrom.y) * e;
+    }
+    if (state === 'fly' || state === 'wait') {
+      flyT += dt;
+      var n = Math.max(1, Math.ceil(dt / (1 / 240))), h = dt / n;
+      for (var i = 0; i < n; i++) step(h);
+      if (state === 'fly' && flyT > 6) miss();
+    }
+    if (state === 'wait') {
+      timer -= dt;
+      if (timer <= 0) {
+        if (pendingMove) { pickHoop(false); pendingMove = false; }
+        resetBall();
+      }
+    }
+    if (ballScale < 1) ballScale = Math.min(1, ballScale + dt * 5);
+    if (netT > 0) netT = Math.max(0, netT - dt);
+    var target = HUE0 + streak * 6;
+    bgHue += (target - bgHue) * Math.min(1, dt * 2);
+  }
+
+  /* ---------- drawing ---------- */
+  function drawBall(x, y, rot, sc) {
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.rotate(rot);
+    ctx.scale(sc, sc);
+    ctx.fillStyle = '#f08a3c';
+    ctx.beginPath(); ctx.arc(0, 0, BR, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = 'rgba(60,25,5,0.75)';
+    ctx.lineWidth = 1.4;
+    ctx.beginPath(); ctx.moveTo(-BR, 0); ctx.lineTo(BR, 0); ctx.moveTo(0, -BR); ctx.lineTo(0, BR); ctx.stroke();
+    ctx.beginPath(); ctx.arc(-BR * 1.35, 0, BR * 0.95, -0.9, 0.9); ctx.stroke();
+    ctx.beginPath(); ctx.arc(BR * 1.35, 0, BR * 0.95, Math.PI - 0.9, Math.PI + 0.9); ctx.stroke();
+    ctx.fillStyle = 'rgba(255,255,255,0.2)';
+    ctx.beginPath(); ctx.arc(-3, 4, 4, 0, Math.PI * 2); ctx.fill();
+    ctx.restore();
+  }
+
+  function drawNet() {
+    var hx = hoop.x, hy = hoop.y;
+    var stretch = netT > 0 ? Math.sin(netT / 0.6 * Math.PI) * 9 : 0;
+    var sway = netT > 0 ? Math.sin(netT * 28) * netT * 6 : 0;
+    var by = hy - 28 - stretch, i, f;
+    ctx.strokeStyle = 'rgba(255,255,255,0.7)';
+    ctx.lineWidth = 1.2;
+    for (i = 0; i < 5; i++) {
+      ctx.beginPath();
+      ctx.moveTo(hx - RR + i * RR / 2, hy);
+      ctx.lineTo(hx - 9 + i * 4.5 + sway, by);
+      ctx.stroke();
+    }
+    for (f = 0.34; f <= 1.01; f += 0.33) {
+      ctx.beginPath();
+      for (i = 0; i < 5; i++) {
+        var tx = hx - RR + i * RR / 2, bx2 = hx - 9 + i * 4.5 + sway;
+        var px = tx + (bx2 - tx) * f, py = hy + (by - hy) * f;
+        if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+      }
+      ctx.stroke();
+    }
+  }
+
+  function drawMini(x, y) {
+    ctx.fillStyle = '#f08a3c';
+    ctx.beginPath(); ctx.arc(x, y, 8, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = 'rgba(60,25,5,0.7)';
+    ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(x - 8, y); ctx.lineTo(x + 8, y); ctx.moveTo(x, y - 8); ctx.lineTo(x, y + 8); ctx.stroke();
+  }
+
+  // background ball rack, sitting under the floating ball
+  function drawRack() {
+    var x0 = BX - 50, x1 = BX + 20;
+    ctx.save();
+    ctx.globalAlpha = 0.5;
+    ctx.fillStyle = 'rgba(210,218,235,0.9)';
+    ctx.fillRect(x0, 8, x1 - x0, 3);
+    ctx.fillRect(x0, 27, x1 - x0, 3);
+    ctx.fillRect(x0, 0, 3, 50);
+    ctx.fillRect(x1 - 3, 0, 3, 50);
+    ctx.fillRect(x0, 47, x1 - x0, 3);
+    var xs = [BX - 32, BX - 14, BX + 4];
+    for (var i = 0; i < 3; i++) drawMini(xs[i], 19);
+    drawMini(xs[0] + 9, 38); drawMini(xs[1] + 9, 38);
+    ctx.restore();
+  }
+
+  function draw() {
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    var h = ((bgHue % 360) + 360) % 360;
+    var g = ctx.createLinearGradient(0, 0, 0, ch);
+    g.addColorStop(0, 'hsl(' + h + ',45%,26%)');
+    g.addColorStop(1, 'hsl(' + (h + 40) + ',42%,9%)');
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, cw, ch);
+
+    // y-up world, origin at field center on the floor line
+    ctx.setTransform(dpr * S, 0, 0, -dpr * S, dpr * cw / 2, dpr * S * (VH - FLOOR));
+
+    ctx.fillStyle = 'rgba(0,0,0,0.38)';
+    ctx.fillRect(-400, -600, 800, 600);
+    ctx.fillStyle = 'rgba(255,255,255,0.22)';
+    ctx.fillRect(-VW / 2, 0, VW, 2);
+    ctx.fillStyle = '#ffd86b';
+    ctx.fillRect(BX - 40, -2, 80, 4);
+
+    drawRack();
+
+    var hx = hoop.x, hy = hoop.y;
+    // backboard and support arm
+    ctx.fillStyle = 'rgba(238,241,247,0.92)';
+    ctx.fillRect(hx + RR + 3, hy - 8, 6, 70);
+    ctx.fillStyle = '#e4572e';
+    ctx.fillRect(hx - RR, hy - 2, RR * 2 + 3, 4);
+    ctx.beginPath(); ctx.arc(hx + RR, hy, RIM, 0, Math.PI * 2); ctx.fill();
+
+    // ball sits between the back rim and the net so a swish reads correctly
+    if (ballScale > 0 && (state !== 'wait' || !pendingMove || ball.y > 0)) {
+      drawBall(ball.x, ball.y, ball.rot, ballScale);
+    }
+    drawNet();
+    ctx.fillStyle = '#e4572e';
+    ctx.beginPath(); ctx.arc(hx - RR, hy, RIM, 0, Math.PI * 2); ctx.fill();
+
+    // aim preview
+    if (aim && state === 'aim') {
+      var v = aimVel();
+      for (var i = 1; i <= 14; i++) {
+        var t = i * 0.055;
+        var px = BX + v.vx * t, py = BY + v.vy * t - 0.5 * G * t * t;
+        ctx.fillStyle = 'rgba(255,255,255,' + (0.85 - i * 0.05) + ')';
+        ctx.beginPath(); ctx.arc(px, py, 3.2 - i * 0.1, 0, Math.PI * 2); ctx.fill();
+      }
+    }
+  }
+
+  function frame(ts) {
+    var dt = Math.min(0.05, (ts - last) / 1000 || 0);
+    last = ts;
+    update(dt);
+    draw();
+    requestAnimationFrame(frame);
+  }
+
+  /* ---------- input: press, pull back, release ---------- */
+  function aimVel() {
+    var dx = (aim.px - aim.sx) / S, dy = (aim.py - aim.sy) / S;
+    var len = Math.hypot(dx, dy);
+    if (len > MAXD) { dx *= MAXD / len; dy *= MAXD / len; len = MAXD; }
+    return { vx: -dx * K, vy: dy * K, len: len };
+  }
+
+  stage.addEventListener('pointerdown', function (e) {
+    if (e.target.closest && e.target.closest('button')) return;
+    e.preventDefault();
+    ensureAudio();
+    if (state === 'ready') { elReady.hidden = true; resetBall(); }
+    if (state !== 'aim') return;
+    var r = stage.getBoundingClientRect();
+    aim = { sx: e.clientX - r.left, sy: e.clientY - r.top, px: e.clientX - r.left, py: e.clientY - r.top, id: e.pointerId };
+    try { stage.setPointerCapture(e.pointerId); } catch (err) {}
+  });
+  stage.addEventListener('pointermove', function (e) {
+    if (!aim || e.pointerId !== aim.id) return;
+    var r = stage.getBoundingClientRect();
+    aim.px = e.clientX - r.left; aim.py = e.clientY - r.top;
+  });
+  function release(e, cancel) {
+    if (!aim || e.pointerId !== aim.id) return;
+    var v = aimVel();
+    aim = null;
+    if (!cancel && state === 'aim' && v.len > 14) shoot(v.vx, v.vy);
+  }
+  stage.addEventListener('pointerup', function (e) { release(e, false); });
+  stage.addEventListener('pointercancel', function (e) { release(e, true); });
+
+  btnMute.addEventListener('click', function () {
+    muted = !muted;
+    btnMute.textContent = muted ? 'Sound off' : 'Sound on';
+    btnMute.setAttribute('aria-pressed', muted ? 'true' : 'false');
+    if (!muted) ensureAudio();
+    btnMute.blur();
+  });
+
+  window.addEventListener('resize', resize);
+  if (window.ResizeObserver) new ResizeObserver(resize).observe(stage);
+  resize();
+  if (!feasible(hoop.x, hoop.y)) pickHoop(true);
+  updateHud(false);
+  requestAnimationFrame(frame);
+})();
+</script>
+
+</body>
+</html>

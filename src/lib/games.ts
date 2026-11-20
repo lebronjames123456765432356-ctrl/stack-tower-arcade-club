@@ -7,7 +7,7 @@ export type Game = {
   description: string;
   controls: string;
   status: "playable" | "coming-soon";
-  thumb: "stack" | "placeholder";
+  thumb: "stack" | "hoop" | "placeholder";
 };
 
 export const SITE_NAME = "UG Games";
@@ -23,7 +23,17 @@ export const games: Game[] = [
     status: "playable",
     thumb: "stack",
   },
-  ...[1, 2, 3, 4, 5].map(
+  {
+    slug: "hoop-streak",
+    title: "Hoop Streak",
+    tagline: "Pull back. Let go. Keep the streak.",
+    description:
+      "Press the ball, pull back and release to arc it into the hoop — the dots preview your shot. Every basket moves the hoop somewhere new, always within reach. One miss resets your streak, so how deep can you go?",
+    controls: "Press, pull back, then release to shoot",
+    status: "playable",
+    thumb: "hoop",
+  },
+  ...[1, 2, 3, 4].map(
     (n): Game => ({
       slug: `coming-soon-${n}`,
       title: "Coming soon",
