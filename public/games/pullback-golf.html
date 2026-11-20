@@ -32,7 +32,8 @@ var sc=1,T=[],sand=[],cup=[],ball={},hole={},pond=null,rocks=[],trees=[],mts=[],
 var state='intro',hi=0,scores=[],strokes=0,aim=null,still=0,rollT=0,toast='',toastT=0,sinkT=0,last={x:0,y:0};
 function rnd(a,b){return a+Math.random()*(b-a)}
 function ss(t){return t*t*(3-2*t)}
-function getH(x){if(Math.abs(x-hole.x)<11)return hole.y+34;var f=x/ST;if(f<0)f=0;if(f>T.length-1.001)f=T.length-1.001;var i=f|0;return T[i]+(T[i+1]-T[i])*(f-i)}
+function getH(x){if(Math.abs(x-hole.x)<11)return hole.y+34;return tH(x)}
+function tH(x){var f=x/ST;if(f<0)f=0;if(f>T.length-1.001)f=T.length-1.001;var i=f|0;return T[i]+(T[i+1]-T[i])*(f-i)}
 function isSand(x){var i=Math.round(x/ST);return sand[Math.max(0,Math.min(T.length-1,i))]}
 function free(a,b){for(var i=0;i<zones.length;i++)if(a<zones[i][1]+35&&b>zones[i][0]-35)return false;return true}
 function flat(cx,half,fall,y){for(var i=0;i<T.length;i++){var d=Math.abs(i*ST-cx),w=d<half?1:d<half+fall?1-ss((d-half)/fall):0;T[i]=T[i]*(1-w)+y*w}}
@@ -63,17 +64,29 @@ function resize(){var r=stage.getBoundingClientRect(),d=window.devicePixelRatio|
 function msg(t,ms){toast=t;toastT=ms||1.4}
 function shoot(vx,vy){last={x:ball.x,y:ball.y};var w=isSand(ball.x)?.55:1;ball.vx=vx*w;ball.vy=vy*w;strokes++;state='roll';still=0;rollT=0}
 function oob(){var b=ball;b.x=70;b.y=getH(70)-R;b.vx=b.vy=0;strokes++;state='aim';still=0;msg('Out of bounds! +1 shot',1.6)}
+function seg(ax,ay,bx,by,e,fr,dt){var b=ball,ux=bx-ax,uy=by-ay,t=((b.x-ax)*ux+(b.y-ay)*uy)/(ux*ux+uy*uy);t=t<0?0:t>1?1:t;
+  var cx=ax+ux*t,cy=ay+uy*t,dx=b.x-cx,dy=b.y-cy,d=Math.hypot(dx,dy);if(d>=R||d===0)return false;
+  var nx=dx/d,ny=dy/d;b.x=cx+nx*R;b.y=cy+ny*R;var vn=b.vx*nx+b.vy*ny;
+  if(vn<0){var ee=-vn<40?0:e;b.vx-=(1+ee)*vn*nx;b.vy-=(1+ee)*vn*ny}
+  var f=Math.exp(-fr*dt),vn2=b.vx*nx+b.vy*ny,tx=b.vx-vn2*nx,ty=b.vy-vn2*ny;b.vx=vn2*nx+tx*f;b.vy=vn2*ny+ty*f;return true}
+var CUP_E=.05;
+function inCup(){return Math.abs(ball.x-hole.x)<11}
 function step(dt){
   var b=ball;b.vy+=G*dt;b.x+=b.vx*dt;b.y+=b.vy*dt;
   if(b.x<R||b.x>W-R){oob();return}
   
   var sp=Math.hypot(b.vx,b.vy);
-  if(Math.abs(b.x-hole.x)<11&&b.y>hole.y+2){state='holed';sinkT=0;return}
   for(var i=0;i<rocks.length;i++){var o=rocks[i],dx=b.x-o.x,dy=b.y-o.y,d=Math.hypot(dx,dy);
     if(d<R+o.r&&d>0){var nx=dx/d,ny=dy/d;b.x=o.x+nx*(R+o.r);b.y=o.y+ny*(R+o.r);var vn=b.vx*nx+b.vy*ny;if(vn<0){b.vx-=1.6*vn*nx;b.vy-=1.6*vn*ny}}}
-  var h=getH(b.x);
-  if(b.y+R>h){
-    var s=(getH(b.x+3)-getH(b.x-3))/6,l=Math.sqrt(1+s*s),nx=s/l,ny=-1/l;
+  var L=hole.x-11,Rr=hole.x+11,F=hole.y+34,cupIn=inCup(),hit=false;
+  if(seg(L,hole.y,L,F,CUP_E,3,dt))hit=true;
+  if(seg(Rr,hole.y,Rr,F,CUP_E,3,dt))hit=true;
+  if(seg(L,F,Rr,F,CUP_E,14,dt))hit=true;
+  if(hit){if(Math.hypot(b.vx,b.vy)<16)still+=dt;else still=0}
+  var h=tH(b.x);
+  if(cupIn){if(!hit)still=0}
+  else if(b.y+R>h){
+    var s=(tH(b.x+3)-tH(b.x-3))/6,l=Math.sqrt(1+s*s),nx=s/l,ny=-1/l;
     b.y=h-R*Math.min(l,1.5);
     var vn=b.vx*nx+b.vy*ny,sa=isSand(b.x);
     if(vn<0){var e=sa?0:(-vn<60?0:.12);b.vx-=(1+e)*vn*nx;b.vy-=(1+e)*vn*ny}
@@ -84,6 +97,7 @@ function step(dt){
   } else still=0;
   if(pond&&b.x>pond.a&&b.x<pond.b&&b.y>pond.y){b.x=last.x;b.y=last.y;b.vx=b.vy=0;strokes++;state='aim';msg('Splash! +1 shot',1.6);return}
   if(b.y>H+60){b.x=last.x;b.y=last.y;b.vx=b.vy=0;strokes++;state='aim';msg('Out of bounds! +1 shot',1.6)}
+  if(still>.35&&inCup()){if(b.y>hole.y){state='holed';sinkT=0;b.vx=b.vy=0;return}b.vx+=(hole.x>b.x?30:-30);still=0}
   if(still>.35){b.vx=b.vy=0;state='aim';still=0;if(isSand(b.x))msg('Landed in sand — your next shot is less powerful!',2.4)}
 }
 function showOv(html){ov.innerHTML='<div class="card">'+html+'</div>';ov.hidden=false}
@@ -135,7 +149,6 @@ function draw(){
       ctx.fillStyle='rgba(255,255,255,'+Math.max(0,1-tt/tm)+')';ctx.beginPath();ctx.arc(x,y,3*(1-.5*tt/tm),0,7);ctx.fill()}
     ctx.strokeStyle='#ffffff55';ctx.lineWidth=3;ctx.beginPath();ctx.moveTo(px,py);ctx.lineTo(px-v.vx/K,py-v.vy/K);ctx.stroke()}
   var bx=ball.x,by2=ball.y,br=R;
-  if(state==='holed'){var q=Math.min(1,sinkT/.5);by2=hole.y+q*14;br=R*(1-q*.4)}
   ctx.fillStyle='#fff';ctx.beginPath();ctx.arc(bx,by2,br,0,7);ctx.fill();
   ctx.fillStyle='#fff';ctx.strokeStyle='#0006';ctx.lineWidth=3;ctx.font='700 26px Orbitron,Trebuchet MS,sans-serif';ctx.textAlign='left';
   ctx.shadowColor='#0004';ctx.shadowBlur=4;ctx.fillText('Hole '+(hi+1)+'/'+HOLES,18,38);
@@ -148,7 +161,7 @@ var lt=0;
 function frame(t){
   var dt=Math.min(.033,(t-lt)/1000||0);lt=t;
   if(toastT>0)toastT-=dt;
-  if(state==='roll'){rollT+=dt;var n=Math.ceil(dt/(1/240)),d=dt/n;for(var i=0;i<n&&state==='roll';i++)step(d);if(rollT>25&&state==='roll'){ball.vx=ball.vy=0;state='aim';if(isSand(ball.x))msg('Landed in sand — your next shot is less powerful!',2.4)}}
+  if(state==='roll'){rollT+=dt;var n=Math.ceil(dt/(1/240)),d=dt/n;for(var i=0;i<n&&state==='roll';i++)step(d);if(rollT>25&&state==='roll'){ball.vx=ball.vy=0;if(inCup()&&ball.y>hole.y){state='holed';sinkT=0}else{state='aim';if(isSand(ball.x))msg('Landed in sand — your next shot is less powerful!',2.4)}}}
   else if(state==='holed'){sinkT+=dt;if(sinkT>.8){state='wait';endHole()}}
   draw();requestAnimationFrame(frame);
 }
