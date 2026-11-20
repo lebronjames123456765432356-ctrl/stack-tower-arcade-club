@@ -1,5 +1,5 @@
 
-name: Test GitHub Pages Build
+name: Publish UG Arcade Backup
 
 on:
   workflow_dispatch:
@@ -7,25 +7,29 @@ on:
     branches:
       - main
 
-jobs:
-  build:
-    runs-on: ubuntu-latest
+permissions:
+  contents: read
+  pages: write
+  id-token: write
 
+jobs:
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
     steps:
       - name: Get repository
         uses: actions/checkout@v4
 
-      - name: Install Bun
-        uses: oven-sh/setup-bun@v2
+      - name: Configure Pages
+        uses: actions/configure-pages@v5
 
-      - name: Install dependencies
-        run: bun install --frozen-lockfile
-
-      - name: Build static website
-        run: bun run vite build --config vite.github-pages.config.ts
-
-      - name: Save website build for inspection
-        uses: actions/upload-artifact@v4
+      - name: Upload arcade website
+        uses: actions/upload-pages-artifact@v3
         with:
-          name: github-pages-test
-          path: .output/public/
+          path: public
+
+      - name: Publish backup
+        id: deployment
+        uses: actions/deploy-pages@v4
