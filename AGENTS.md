@@ -28,3 +28,6 @@ use the editor.
   own key and store it in Secrets.
 - **Secrets.** Lovable manages them. Do not put secret values in the repo.
 <!-- LOVABLE:END -->
+
+## Project rules
+- Games are standalone HTML files in `public/games/<slug>.html`, listed in `src/lib/games.ts` and embedded via iframe on `/games/$slug` — keeps each game self-contained so new ones drop in without porting.

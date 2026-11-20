@@ -1,0 +1,535 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<title>Stack Tower</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&display=swap">
+<style>
+[hidden] { display: none !important; }
+/* Layout: one portrait play field, centered, with score pinned top and panels over the field. Single dark look by design. */
+:root {
+  --bg: #0b0e15;
+  --ink: #eef1f7;
+  --muted: #a3acbf;
+  --panel: rgba(10, 13, 20, 0.8);
+  --line: rgba(255, 255, 255, 0.14);
+  --gold: #ffd86b;
+  --font: 'Space Grotesk', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+html, body { height: 100%; }
+body {
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--font);
+  padding-block: 12px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  overflow: hidden;
+  overscroll-behavior: none;
+}
+.stage {
+  position: relative;
+  height: 100%;
+  max-width: 460px;
+  margin: 0 auto;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  overflow: hidden;
+  cursor: pointer;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+canvas { display: block; width: 100%; height: 100%; }
+.hud {
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  padding: 14px 14px 0;
+  text-align: center;
+  pointer-events: none;
+}
+.score {
+  font-size: clamp(3.5rem, 15vw, 5rem);
+  font-weight: 700;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  text-shadow: 0 2px 18px rgba(0, 0, 0, 0.45);
+}
+.score.pop { animation: pop 0.22s ease-out; }
+@keyframes pop { 0% { transform: scale(1.18); } 100% { transform: scale(1); } }
+.sub {
+  margin-top: 6px;
+  display: flex;
+  justify-content: center;
+  gap: 16px;
+  font-size: 0.8rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+.sub b { color: var(--ink); font-weight: 700; }
+.mute {
+  position: absolute;
+  top: 12px; right: 12px;
+  background: var(--panel);
+  color: var(--muted);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 6px 12px;
+  font: 500 0.75rem var(--font);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+.mute:focus-visible, .btn:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
+.toast {
+  position: absolute;
+  left: 0; right: 0;
+  top: 27%;
+  text-align: center;
+  font-weight: 700;
+  font-size: 1.35rem;
+  letter-spacing: 0.16em;
+  color: var(--gold);
+  text-shadow: 0 2px 14px rgba(0, 0, 0, 0.5);
+  opacity: 0;
+  pointer-events: none;
+}
+.toast small { display: block; margin-top: 4px; font-size: 0.8rem; letter-spacing: 0.12em; color: var(--ink); }
+.toast.show { animation: toast 0.95s ease-out; }
+@keyframes toast {
+  0% { opacity: 0; transform: translateY(10px) scale(0.92); }
+  15% { opacity: 1; transform: translateY(0) scale(1.05); }
+  70% { opacity: 1; transform: translateY(0) scale(1); }
+  100% { opacity: 0; transform: translateY(-14px) scale(1); }
+}
+.panel {
+  position: absolute;
+  left: 16px; right: 16px;
+  background: var(--panel);
+  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 20px;
+  text-align: center;
+}
+.panel.ready { bottom: 24px; }
+.panel.over { top: 50%; transform: translateY(-50%); }
+.panel h1 { margin: 0 0 8px; font-size: 1.6rem; letter-spacing: 0.02em; }
+.panel p { margin: 0; color: var(--muted); font-size: 0.95rem; line-height: 1.5; text-wrap: balance; }
+.panel p + p { margin-top: 6px; }
+.panel .kbd { color: var(--ink); font-weight: 700; }
+.final { font-size: 4rem; font-weight: 700; line-height: 1; margin: 6px 0 2px; font-variant-numeric: tabular-nums; }
+.badge {
+  display: inline-block;
+  margin-top: 4px;
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: var(--gold);
+  color: #1b1500;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+.stats {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  margin: 16px 0;
+  font-variant-numeric: tabular-nums;
+}
+.stats div { border: 1px solid var(--line); border-radius: 10px; padding: 8px 4px; }
+.stats dt { font-size: 0.68rem; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); }
+.stats dd { margin: 2px 0 0; font-size: 1.3rem; font-weight: 700; }
+.btn {
+  background: var(--ink);
+  color: var(--bg);
+  border: 0;
+  border-radius: 10px;
+  padding: 12px 22px;
+  font: 700 1rem var(--font);
+  cursor: pointer;
+}
+@media (prefers-reduced-motion: reduce) {
+  .score.pop { animation: none; }
+  .toast.show { animation: fade 0.95s linear; }
+  @keyframes fade { 0%, 80% { opacity: 1; } 100% { opacity: 0; } }
+}
+</style>
+</head>
+<body>
+
+
+<div class="stage" id="stage">
+  <canvas id="c" aria-label="Stack Tower game field"></canvas>
+  <div class="hud">
+    <div class="score" id="score" aria-live="off">0</div>
+    <div class="sub"><span>Floor <b id="floor">0</b></span><span>Best <b id="best">0</b></span></div>
+  </div>
+  <button class="mute" id="mute" type="button" aria-pressed="false">Sound on</button>
+  <div class="toast" id="toast" aria-live="polite"></div>
+
+  <div class="panel ready" id="ready">
+    <h1>Stack Tower</h1>
+    <p>Drop each sliding block onto the tower. Any overhang gets cut off, so the tower narrows.</p>
+    <p>Land within a hair of the edge for a <span class="kbd">Perfect</span>. Chain three and the block grows back.</p>
+    <p style="margin-top:12px"><span class="kbd">Tap, click or press Space</span> to start</p>
+  </div>
+
+  <div class="panel over" id="over" hidden>
+    <h1>Tower down</h1>
+    <div class="final" id="finalScore">0</div>
+    <span class="badge" id="newBest" hidden>New best</span>
+    <dl class="stats">
+      <div><dt>Best</dt><dd id="finalBest">0</dd></div>
+      <div><dt>Floors</dt><dd id="finalFloors">0</dd></div>
+      <div><dt>Perfects</dt><dd id="finalPerfects">0</dd></div>
+    </dl>
+    <button class="btn" id="again" type="button">Play again</button>
+  </div>
+</div>
+
+<script>
+(function () {
+  'use strict';
+  var stage = document.getElementById('stage');
+  var cv = document.getElementById('c');
+  var ctx = cv.getContext('2d');
+  var elScore = document.getElementById('score');
+  var elFloor = document.getElementById('floor');
+  var elBest = document.getElementById('best');
+  var elToast = document.getElementById('toast');
+  var elReady = document.getElementById('ready');
+  var elOver = document.getElementById('over');
+  var elNewBest = document.getElementById('newBest');
+  var btnMute = document.getElementById('mute');
+  var btnAgain = document.getElementById('again');
+
+  // World units: the field is 360 wide, blocks are 22 tall, y grows downward on screen.
+  var VW = 360, BH = 22, BASE_W = 190, TOL = 4, RANGE = 150, GROUND = 76;
+  var HUE0 = 205, HUE_STEP = 6;
+  var cw = 0, ch = 0, dpr = 1, S = 1, VH = 640;
+
+  var blocks, cur, falling, rings;
+  var score, perfects, combo, state, camY, bgHue, overAt, isNew;
+  var best = 0, muted = false, audio = null, last = 0;
+
+  try { best = parseInt(localStorage.getItem('stacktower-best'), 10) || 0; } catch (e) {}
+
+  function resize() {
+    var r = stage.getBoundingClientRect();
+    dpr = Math.min(window.devicePixelRatio || 1, 2);
+    cw = Math.max(1, r.width);
+    ch = Math.max(1, r.height);
+    cv.width = Math.round(cw * dpr);
+    cv.height = Math.round(ch * dpr);
+    S = cw / VW;
+    VH = ch / S;
+  }
+
+  function reset() {
+    blocks = [{ x: 0, w: BASE_W }];
+    falling = [];
+    rings = [];
+    score = 0; perfects = 0; combo = 0; isNew = false;
+    camY = 0;
+    bgHue = HUE0;
+    state = 'ready';
+    spawn();
+    updateHud(false);
+  }
+
+  function spawn() {
+    var prev = blocks[blocks.length - 1];
+    var side = (blocks.length % 2) ? -1 : 1;
+    cur = { x: side * RANGE, w: prev.w, dir: -side };
+  }
+
+  function speed() {
+    if (state !== 'playing') return 110;
+    return 115 + Math.min(blocks.length, 70) * 3;
+  }
+
+  function updateHud(pop) {
+    elScore.textContent = score;
+    elFloor.textContent = blocks.length - 1;
+    elBest.textContent = best;
+    if (pop) {
+      elScore.classList.remove('pop');
+      void elScore.offsetWidth;
+      elScore.classList.add('pop');
+    }
+  }
+
+  function showToast(main, sub) {
+    elToast.innerHTML = '';
+    elToast.appendChild(document.createTextNode(main));
+    if (sub) {
+      var s = document.createElement('small');
+      s.textContent = sub;
+      elToast.appendChild(s);
+    }
+    elToast.classList.remove('show');
+    void elToast.offsetWidth;
+    elToast.classList.add('show');
+  }
+
+  /* ---------- sound ---------- */
+  function ensureAudio() {
+    if (audio) { if (audio.state === 'suspended') { try { audio.resume(); } catch (e) {} } return; }
+    try { audio = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) { audio = null; }
+  }
+  function tone(freq, dur, type, vol) {
+    if (muted || !audio) return;
+    try {
+      var o = audio.createOscillator();
+      var g = audio.createGain();
+      var t = audio.currentTime;
+      o.type = type || 'sine';
+      o.frequency.value = freq;
+      g.gain.setValueAtTime(vol || 0.1, t);
+      g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+      o.connect(g);
+      g.connect(audio.destination);
+      o.start(t);
+      o.stop(t + dur);
+    } catch (e) {}
+  }
+  var SCALE = [0, 2, 4, 7, 9, 12, 14, 16];
+
+  /* ---------- game flow ---------- */
+  function place() {
+    var prev = blocks[blocks.length - 1];
+    var delta = cur.x - prev.x;
+    var overlap = cur.w - Math.abs(delta);
+    var lvl = blocks.length;
+    if (overlap <= 0) { endGame(); return; }
+
+    var nb;
+    if (Math.abs(delta) <= TOL) {
+      combo++; perfects++;
+      nb = { x: prev.x, w: cur.w };
+      if (combo >= 3 && nb.w < BASE_W) nb.w = Math.min(BASE_W, nb.w + 5);
+      var pts = 1 + Math.min(combo, 5);
+      score += pts;
+      rings.push({ level: lvl, x: nb.x, w: nb.w, age: 0 });
+      showToast('PERFECT', (combo > 1 ? 'x' + combo + '  ' : '') + '+' + pts);
+      tone(523.25 * Math.pow(2, SCALE[Math.min(combo - 1, SCALE.length - 1)] / 12), 0.35, 'triangle', 0.16);
+    } else {
+      combo = 0;
+      var cl = cur.x - cur.w / 2, cr = cur.x + cur.w / 2;
+      var l = Math.max(cl, prev.x - prev.w / 2);
+      var r = Math.min(cr, prev.x + prev.w / 2);
+      nb = { x: (l + r) / 2, w: r - l };
+      if (delta > 0) falling.push({ x: (r + cr) / 2, w: cr - r, level: lvl, y: 0, vy: 0, rot: 0, spin: 1.2 });
+      else falling.push({ x: (cl + l) / 2, w: l - cl, level: lvl, y: 0, vy: 0, rot: 0, spin: -1.2 });
+      score += 1;
+      tone(240, 0.09, 'square', 0.05);
+    }
+    blocks.push(nb);
+    spawn();
+    updateHud(true);
+  }
+
+  function endGame() {
+    state = 'over';
+    overAt = performance.now();
+    falling.push({ x: cur.x, w: cur.w, level: blocks.length, y: 0, vy: 0, rot: 0, spin: cur.dir * 1.5 });
+    combo = 0;
+    if (score > best) {
+      best = score; isNew = true;
+      try { localStorage.setItem('stacktower-best', String(best)); } catch (e) {}
+    }
+    tone(130, 0.5, 'sawtooth', 0.08);
+    updateHud(false);
+    setTimeout(function () {
+      if (state !== 'over') return;
+      document.getElementById('finalScore').textContent = score;
+      document.getElementById('finalBest').textContent = best;
+      document.getElementById('finalFloors').textContent = blocks.length - 1;
+      document.getElementById('finalPerfects').textContent = perfects;
+      elNewBest.hidden = !isNew;
+      elOver.hidden = false;
+    }, 550);
+  }
+
+  function restart() {
+    reset();
+    elReady.hidden = true;
+    elOver.hidden = true;
+    state = 'playing';
+  }
+
+  function action() {
+    ensureAudio();
+    if (state === 'ready') {
+      elReady.hidden = true;
+      state = 'playing';
+      spawn();
+    } else if (state === 'playing') {
+      place();
+    } else if (state === 'over') {
+      if (performance.now() - overAt > 450) restart();
+    }
+  }
+
+  /* ---------- update + draw ---------- */
+  function levelY(i) { return VH - GROUND - (i + 1) * BH + camY; }
+
+  function update(dt) {
+    if (state === 'ready' || state === 'playing') {
+      cur.x += cur.dir * speed() * dt;
+      if (cur.x > RANGE) { cur.x = RANGE; cur.dir = -1; }
+      else if (cur.x < -RANGE) { cur.x = -RANGE; cur.dir = 1; }
+    }
+    var target = Math.max(0, blocks.length * BH + GROUND - VH * 0.45);
+    camY += (target - camY) * Math.min(1, dt * 5);
+    var hueTarget = HUE0 + blocks.length * HUE_STEP;
+    bgHue += (hueTarget - bgHue) * Math.min(1, dt * 2);
+
+    for (var i = falling.length - 1; i >= 0; i--) {
+      var f = falling[i];
+      f.vy += 900 * dt;
+      f.y += f.vy * dt;
+      f.rot += f.spin * dt;
+      if (f.y > VH + 300) falling.splice(i, 1);
+    }
+    for (var j = rings.length - 1; j >= 0; j--) {
+      rings[j].age += dt;
+      if (rings[j].age > 0.6) rings.splice(j, 1);
+    }
+  }
+
+  function drawBlock(x, w, y, level) {
+    var hue = HUE0 + level * HUE_STEP;
+    ctx.fillStyle = 'hsl(' + hue + ',64%,58%)';
+    ctx.fillRect(x - w / 2, y, w, BH);
+    ctx.fillStyle = 'rgba(255,255,255,0.22)';
+    ctx.fillRect(x - w / 2, y, w, 3);
+    ctx.fillStyle = 'rgba(0,0,0,0.22)';
+    ctx.fillRect(x - w / 2, y + BH - 3, w, 3);
+  }
+
+  function draw() {
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    var h = ((bgHue % 360) + 360) % 360;
+    var g = ctx.createLinearGradient(0, 0, 0, ch);
+    g.addColorStop(0, 'hsl(' + h + ',45%,26%)');
+    g.addColorStop(1, 'hsl(' + (h + 40) + ',42%,9%)');
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, cw, ch);
+
+    ctx.setTransform(dpr * S, 0, 0, dpr * S, dpr * cw / 2, 0);
+
+    // floor markers every 10 floors
+    ctx.font = '600 11px "Space Grotesk", system-ui, sans-serif';
+    ctx.textBaseline = 'bottom';
+    for (var k = 10; k <= blocks.length + 14; k += 10) {
+      var my = levelY(k - 1);
+      if (my < -20 || my > VH + 20) continue;
+      ctx.strokeStyle = 'rgba(255,255,255,0.18)';
+      ctx.lineWidth = 1;
+      ctx.setLineDash([4, 5]);
+      ctx.beginPath();
+      ctx.moveTo(-VW / 2, my);
+      ctx.lineTo(VW / 2, my);
+      ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.fillStyle = 'rgba(255,255,255,0.45)';
+      ctx.fillText(String(k), -VW / 2 + 8, my - 3);
+    }
+
+    // ground
+    var gy = VH - GROUND + camY;
+    if (gy < VH + 40) {
+      ctx.fillStyle = 'rgba(0,0,0,0.38)';
+      ctx.fillRect(-400, gy, 800, VH - gy + 600);
+    }
+
+    // stacked blocks
+    for (var i = 0; i < blocks.length; i++) {
+      var by = levelY(i);
+      if (by > VH + BH || by < -BH) continue;
+      drawBlock(blocks[i].x, blocks[i].w, by, i);
+    }
+
+    // current block
+    if (state !== 'over') drawBlock(cur.x, cur.w, levelY(blocks.length), blocks.length);
+
+    // perfect flashes and rings
+    for (var r = 0; r < rings.length; r++) {
+      var ring = rings[r];
+      var p = ring.age / 0.6;
+      var ry = levelY(ring.level);
+      if (p < 0.5) {
+        ctx.fillStyle = 'rgba(255,255,255,' + (0.55 * (1 - p * 2)) + ')';
+        ctx.fillRect(ring.x - ring.w / 2, ry, ring.w, BH);
+      }
+      var e = p * 16;
+      ctx.strokeStyle = 'rgba(255,236,160,' + (0.9 * (1 - p)) + ')';
+      ctx.lineWidth = 2;
+      ctx.strokeRect(ring.x - ring.w / 2 - e, ry - e, ring.w + e * 2, BH + e * 2);
+    }
+
+    // falling slices
+    for (var f = 0; f < falling.length; f++) {
+      var s = falling[f];
+      ctx.save();
+      ctx.translate(s.x, levelY(s.level) + BH / 2 + s.y);
+      ctx.rotate(s.rot);
+      drawBlock(0, s.w, -BH / 2, s.level);
+      ctx.restore();
+    }
+  }
+
+  function frame(ts) {
+    var dt = Math.min(0.05, (ts - last) / 1000 || 0);
+    last = ts;
+    update(dt);
+    draw();
+    requestAnimationFrame(frame);
+  }
+
+  /* ---------- input ---------- */
+  stage.addEventListener('pointerdown', function (e) {
+    if (e.target.closest && e.target.closest('button')) return;
+    e.preventDefault();
+    action();
+  });
+  document.addEventListener('keydown', function (e) {
+    if (e.target && e.target.tagName === 'BUTTON') return;
+    if (e.code === 'Space' || e.code === 'Enter') {
+      e.preventDefault();
+      if (!e.repeat) action();
+    }
+  });
+  btnAgain.addEventListener('click', function () {
+    ensureAudio();
+    if (state === 'over') restart();
+  });
+  btnMute.addEventListener('click', function () {
+    muted = !muted;
+    btnMute.textContent = muted ? 'Sound off' : 'Sound on';
+    btnMute.setAttribute('aria-pressed', muted ? 'true' : 'false');
+    if (!muted) ensureAudio();
+    btnMute.blur();
+  });
+
+  window.addEventListener('resize', resize);
+  if (window.ResizeObserver) new ResizeObserver(resize).observe(stage);
+  resize();
+  reset();
+  requestAnimationFrame(frame);
+})();
+</script>
+
+</body>
+</html>
