@@ -62,7 +62,9 @@ function gen(n){
 }
 function resize(){var r=stage.getBoundingClientRect(),d=window.devicePixelRatio||1;cv.width=Math.round(r.width*d);cv.height=Math.round(r.height*d);sc=cv.width/W}
 function msg(t,ms){toast=t;toastT=ms||1.4}
-function shoot(vx,vy){last={x:ball.x,y:ball.y};ball.vx=vx;ball.vy=vy;strokes++;state='roll';still=0;rollT=0}
+var anc=null;
+function settle(){ball.vx=ball.vy=0;anc=null;if(inCup()&&ball.y>hole.y){state='holed';sinkT=0}else{state='aim';still=0;if(isSand(ball.x))msg('Landed in sand — your next shot is less powerful!',2.4)}}
+function shoot(vx,vy){anc=null;last={x:ball.x,y:ball.y};ball.vx=vx;ball.vy=vy;strokes++;state='roll';still=0;rollT=0}
 function oob(){var b=ball;b.x=70;b.y=getH(70)-R;b.vx=b.vy=0;strokes++;state='aim';still=0;msg('Out of bounds! +1 shot',1.6)}
 function seg(ax,ay,bx,by,e,fr,dt){var b=ball,ux=bx-ax,uy=by-ay,t=((b.x-ax)*ux+(b.y-ay)*uy)/(ux*ux+uy*uy);t=t<0?0:t>1?1:t;
   var cx=ax+ux*t,cy=ay+uy*t,dx=b.x-cx,dy=b.y-cy,d=Math.hypot(dx,dy);if(d>=R||d===0)return false;
@@ -75,17 +77,17 @@ function step(dt){
   var b=ball;b.vy+=G*dt;b.x+=b.vx*dt;b.y+=b.vy*dt;
   if(b.x<R||b.x>W-R){oob();return}
   
-  var sp=Math.hypot(b.vx,b.vy);
+  var touch=false;
   for(var i=0;i<rocks.length;i++){var o=rocks[i],dx=b.x-o.x,dy=b.y-o.y,d=Math.hypot(dx,dy);
-    if(d<R+o.r&&d>0){var nx=dx/d,ny=dy/d;b.x=o.x+nx*(R+o.r);b.y=o.y+ny*(R+o.r);var vn=b.vx*nx+b.vy*ny;if(vn<0){b.vx-=1.6*vn*nx;b.vy-=1.6*vn*ny}}}
+    if(d<R+o.r&&d>0){var nx=dx/d,ny=dy/d;b.x=o.x+nx*(R+o.r);b.y=o.y+ny*(R+o.r);var vn=b.vx*nx+b.vy*ny;
+      if(vn<0){var re=-vn<60?0:.6;b.vx-=(1+re)*vn*nx;b.vy-=(1+re)*vn*ny}
+      var rf=Math.exp(-4*dt),rv=b.vx*nx+b.vy*ny,rtx=b.vx-rv*nx,rty=b.vy-rv*ny;b.vx=rv*nx+rtx*rf;b.vy=rv*ny+rty*rf;touch=true}}
   var L=hole.x-11,Rr=hole.x+11,F=hole.y+34,cupIn=inCup(),hit=false;
   if(seg(L,hole.y,L,F,CUP_E,3,dt))hit=true;
   if(seg(Rr,hole.y,Rr,F,CUP_E,3,dt))hit=true;
   if(seg(L,F,Rr,F,CUP_E,14,dt))hit=true;
-  if(hit){if(Math.hypot(b.vx,b.vy)<16)still+=dt;else still=0}
-  var h=tH(b.x);
-  if(cupIn){if(!hit)still=0}
-  else if(b.y+R>h){
+  var h=tH(b.x),ground=false;
+  if(!cupIn&&b.y+R>h){ground=true;
     var s=(tH(b.x+3)-tH(b.x-3))/6,l=Math.sqrt(1+s*s),nx=s/l,ny=-1/l;
     b.y=h-R*Math.min(l,1.5);
     var vn=b.vx*nx+b.vy*ny,sa=isSand(b.x);
@@ -93,8 +95,8 @@ function step(dt){
     var f=Math.exp(-(sa?28:3.4)*dt)*(vn<-60?(sa?.2:.8):1);
     var vn2=b.vx*nx+b.vy*ny,tx=b.vx-vn2*nx,ty=b.vy-vn2*ny;
     b.vx=vn2*nx+tx*f;b.vy=vn2*ny+ty*f;
-    if(Math.hypot(b.vx,b.vy)<16)still+=dt;else still=0;
-  } else still=0;
+  }
+  if((hit||ground||touch)&&Math.hypot(b.vx,b.vy)<16)still+=dt;else still=0;
   if(pond&&b.x>pond.a&&b.x<pond.b&&b.y>pond.y){b.x=last.x;b.y=last.y;b.vx=b.vy=0;strokes++;state='aim';msg('Splash! +1 shot',1.6);return}
   if(b.y>H+60){b.x=last.x;b.y=last.y;b.vx=b.vy=0;strokes++;state='aim';msg('Out of bounds! +1 shot',1.6)}
   if(still>.35&&inCup()){if(b.y>hole.y){state='holed';sinkT=0;b.vx=b.vy=0;return}b.vx+=(hole.x>b.x?30:-30);still=0}
@@ -157,11 +159,16 @@ function draw(){
   if(toastT>0){ctx.textAlign='center';ctx.font='700 24px Orbitron,Trebuchet MS,sans-serif';ctx.fillText(toast,W/2,90)}
   ctx.shadowBlur=0;
 }
+// Advance a shot in flight. If the ball jiggles in place (e.g. wedged against a rock on a slope) for 1.2s, call it stopped.
+function tick(dt){rollT+=dt;var n=Math.ceil(dt/(1/240)),d=dt/n;for(var i=0;i<n&&state==='roll';i++)step(d);
+  if(state!=='roll')return;
+  if(!anc||Math.hypot(ball.x-anc.x,ball.y-anc.y)>3)anc={x:ball.x,y:ball.y,t:rollT};else if(rollT-anc.t>1.2)settle();
+  if(rollT>25&&state==='roll')settle()}
 var lt=0;
 function frame(t){
   var dt=Math.min(.033,(t-lt)/1000||0);lt=t;
   if(toastT>0)toastT-=dt;
-  if(state==='roll'){rollT+=dt;var n=Math.ceil(dt/(1/240)),d=dt/n;for(var i=0;i<n&&state==='roll';i++)step(d);if(rollT>25&&state==='roll'){ball.vx=ball.vy=0;if(inCup()&&ball.y>hole.y){state='holed';sinkT=0}else{state='aim';if(isSand(ball.x))msg('Landed in sand — your next shot is less powerful!',2.4)}}}
+  if(state==='roll')tick(dt);
   else if(state==='holed'){sinkT+=dt;if(sinkT>.8){state='wait';endHole()}}
   draw();requestAnimationFrame(frame);
 }
