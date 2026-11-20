@@ -7,7 +7,7 @@ export type Game = {
   description: string;
   controls: string;
   status: "playable" | "coming-soon";
-  thumb: "stack" | "hoop" | "placeholder";
+  thumb: "stack" | "hoop" | "golf" | "placeholder";
 };
 
 export const SITE_NAME = "UG Games";
@@ -33,7 +33,17 @@ export const games: Game[] = [
     status: "playable",
     thumb: "hoop",
   },
-  ...[1, 2, 3, 4].map(
+  {
+    slug: "pullback-golf",
+    title: "Pullback Golf",
+    tagline: "Pull back. Sink it. Mind the sand.",
+    description:
+      "Press, pull back and release to launch the ball toward the flag across 5 random holes. Water and out-of-bounds cost a shot — and landing in sand makes your next shot less powerful.",
+    controls: "Press, pull back, then release to shoot",
+    status: "playable",
+    thumb: "golf",
+  },
+  ...[1, 2, 3].map(
     (n): Game => ({
       slug: `coming-soon-${n}`,
       title: "Coming soon",

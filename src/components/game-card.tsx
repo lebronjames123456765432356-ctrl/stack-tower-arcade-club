@@ -17,6 +17,17 @@ function Thumb({ game }: { game: Game }) {
       </div>
     );
   }
+  if (game.thumb === "golf") {
+    return (
+      <div className="thumb-golf aspect-[4/3] w-full">
+        <span className="hill" />
+        <span className="bunker" />
+        <span className="pole" />
+        <span className="flag" />
+        <span className="gball" />
+      </div>
+    );
+  }
   if (game.thumb === "stack") {
     return (
       <div className="thumb-stack aspect-[4/3] w-full">

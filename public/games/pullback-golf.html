@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Pullback Golf</title>
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@700&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#222a31;--panel:#ffffffee;--ink:#1d2b36;--btn:#ff7a2f;--btnink:#fff;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#1a2026;--panel:#e9f1f7f2;--ink:#1d2b36}}
+html,body{height:100%;margin:0;background:var(--bg);overflow:hidden;font-family:'Trebuchet MS',Verdana,sans-serif}
+#wrap{height:100%;display:flex;align-items:center;justify-content:center}
+#stage{position:relative;width:min(100vw,calc((100vh - env(safe-area-inset-top,0px) - env(safe-area-inset-bottom,0px))*16/9));aspect-ratio:16/9;touch-action:none;user-select:none}
+canvas{position:absolute;inset:0;width:100%;height:100%;display:block}
+#ov{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:#0a1a2a55}
+#ov[hidden]{display:none}
+.card{background:var(--panel);color:var(--ink);border-radius:16px;padding:22px 30px;text-align:center;max-width:80%;box-shadow:0 8px 30px #0005}
+.card h1{font:700 clamp(18px,3.4vw,30px) Orbitron,sans-serif;margin:0 0 8px}
+.card p{margin:6px 0;font-size:clamp(12px,1.8vw,16px)}
+.card button{margin-top:12px;border:0;border-radius:24px;padding:10px 26px;background:var(--btn);color:var(--btnink);font:700 clamp(13px,2vw,17px) Orbitron,sans-serif;cursor:pointer}
+table{margin:8px auto;border-collapse:collapse;font-size:clamp(12px,1.8vw,16px)}
+td,th{padding:3px 14px;border-bottom:1px solid #0002}
+</style>
+</head>
+<body>
+<div id="wrap"><div id="stage"><canvas id="c"></canvas><div id="ov"></div></div></div>
+<script>
+(function(){
+var W=960,H=540,G=900,R=5.5,MAXD=75,K=950/MAXD,HOLES=5,ST=4;
+var cv=document.getElementById('c'),ctx=cv.getContext('2d'),ov=document.getElementById('ov'),stage=document.getElementById('stage');
+var sc=1,T=[],sand=[],cup=[],ball={},hole={},pond=null,rocks=[],trees=[],mts=[],zones=[];
+var state='intro',hi=0,scores=[],strokes=0,aim=null,still=0,rollT=0,toast='',toastT=0,sinkT=0,last={x:0,y:0};
+function rnd(a,b){return a+Math.random()*(b-a)}
+function ss(t){return t*t*(3-2*t)}
+function getH(x){if(Math.abs(x-hole.x)<11)return hole.y+34;var f=x/ST;if(f<0)f=0;if(f>T.length-1.001)f=T.length-1.001;var i=f|0;return T[i]+(T[i+1]-T[i])*(f-i)}
+function isSand(x){var i=Math.round(x/ST);return sand[Math.max(0,Math.min(T.length-1,i))]}
+function free(a,b){for(var i=0;i<zones.length;i++)if(a<zones[i][1]+35&&b>zones[i][0]-35)return false;return true}
+function flat(cx,half,fall,y){for(var i=0;i<T.length;i++){var d=Math.abs(i*ST-cx),w=d<half?1:d<half+fall?1-ss((d-half)/fall):0;T[i]=T[i]*(1-w)+y*w}}
+function gen(n){
+  hole={};T=[];sand=[];cup=[];rocks=[];trees=[];mts=[];zones=[];pond=null;
+  var base=rnd(350,400),a1=rnd(25,50),f1=rnd(.004,.008),p1=rnd(0,6),a2=rnd(8,22),f2=rnd(.012,.022),p2=rnd(0,6),sl=rnd(-.05,.05);
+  for(var i=0;i<=W/ST;i++){var x=i*ST;T.push(base+a1*Math.sin(x*f1+p1)+a2*Math.sin(x*f2+p2)+sl*(x-480));sand.push(false);cup.push(false)}
+  var hx=Math.round(rnd(700,880)/ST)*ST,ty=getH(70),hy=getH(hx);
+  flat(70,26,40,ty);flat(hx,34,40,hy);hy=getH(hx);
+  zones.push([30,115],[hx-75,hx+75]);
+  var tries,w,s;
+  if(false){for(tries=0;tries<25;tries++){w=rnd(90,140);s=rnd(190,hx-w-90);if(free(s,s+w)){
+    for(var i=0;i<T.length;i++){var x=i*ST;if(x>=s&&x<=s+w)T[i]+=48*Math.sin(Math.PI*(x-s)/w)}
+    pond={a:s,b:s+w,y:Math.min(getH(s),getH(s+w))+7};zones.push([s,s+w]);break}}}
+  var ns=1+(Math.random()<.5)+(n>2);
+  for(var k=0;k<ns;k++)for(tries=0;tries<25;tries++){w=rnd(70,110);s=rnd(160,hx-w-85);if(free(s,s+w)){
+    for(var i=0;i<T.length;i++){var x=i*ST;if(x>=s&&x<=s+w){T[i]+=9*Math.sin(Math.PI*(x-s)/w);sand[i]=true}}
+    zones.push([s,s+w]);break}}
+  var nr=0;
+  for(var k=0;k<nr;k++)for(tries=0;tries<25;tries++){var rx=rnd(200,hx-90),rr=rnd(13,20);if(free(rx-rr,rx+rr)){rocks.push({x:rx,y:getH(rx)-rr*.45,r:rr});zones.push([rx-rr,rx+rr]);break}}
+  for(var i=0;i<T.length;i++)if(Math.abs(i*ST-hx)<=12){cup[i]=true}
+  hole={x:hx,y:hy};
+  for(var k=0;k<3;k++)mts.push({x:rnd(100,860),w:rnd(180,300),h:rnd(110,170)});
+  for(var k=0;k<7;k++){var tx=rnd(130,930);if(free(tx-8,tx+8))trees.push({x:tx,s:rnd(.7,1.2)})}
+  ball={x:70,y:ty-R,vx:0,vy:0};last={x:70,y:ty-R};strokes=0;state='aim';still=0;
+}
+function resize(){var r=stage.getBoundingClientRect(),d=window.devicePixelRatio||1;cv.width=Math.round(r.width*d);cv.height=Math.round(r.height*d);sc=cv.width/W}
+function msg(t,ms){toast=t;toastT=ms||1.4}
+function shoot(vx,vy){last={x:ball.x,y:ball.y};var w=isSand(ball.x)?.55:1;ball.vx=vx*w;ball.vy=vy*w;strokes++;state='roll';still=0;rollT=0}
+function oob(){var b=ball;b.x=70;b.y=getH(70)-R;b.vx=b.vy=0;strokes++;state='aim';still=0;msg('Out of bounds! +1 shot',1.6)}
+function step(dt){
+  var b=ball;b.vy+=G*dt;b.x+=b.vx*dt;b.y+=b.vy*dt;
+  if(b.x<R||b.x>W-R){oob();return}
+  
+  var sp=Math.hypot(b.vx,b.vy);
+  if(Math.abs(b.x-hole.x)<11&&b.y>hole.y+2){state='holed';sinkT=0;return}
+  for(var i=0;i<rocks.length;i++){var o=rocks[i],dx=b.x-o.x,dy=b.y-o.y,d=Math.hypot(dx,dy);
+    if(d<R+o.r&&d>0){var nx=dx/d,ny=dy/d;b.x=o.x+nx*(R+o.r);b.y=o.y+ny*(R+o.r);var vn=b.vx*nx+b.vy*ny;if(vn<0){b.vx-=1.6*vn*nx;b.vy-=1.6*vn*ny}}}
+  var h=getH(b.x);
+  if(b.y+R>h){
+    var s=(getH(b.x+3)-getH(b.x-3))/6,l=Math.sqrt(1+s*s),nx=s/l,ny=-1/l;
+    b.y=h-R*Math.min(l,1.5);
+    var vn=b.vx*nx+b.vy*ny,sa=isSand(b.x);
+    if(vn<0){var e=sa?0:(-vn<60?0:.12);b.vx-=(1+e)*vn*nx;b.vy-=(1+e)*vn*ny}
+    var f=Math.exp(-(sa?28:3.4)*dt)*(vn<-60?(sa?.2:.8):1);
+    var vn2=b.vx*nx+b.vy*ny,tx=b.vx-vn2*nx,ty=b.vy-vn2*ny;
+    b.vx=vn2*nx+tx*f;b.vy=vn2*ny+ty*f;
+    if(Math.hypot(b.vx,b.vy)<16)still+=dt;else still=0;
+  } else still=0;
+  if(pond&&b.x>pond.a&&b.x<pond.b&&b.y>pond.y){b.x=last.x;b.y=last.y;b.vx=b.vy=0;strokes++;state='aim';msg('Splash! +1 shot',1.6);return}
+  if(b.y>H+60){b.x=last.x;b.y=last.y;b.vx=b.vy=0;strokes++;state='aim';msg('Out of bounds! +1 shot',1.6)}
+  if(still>.35){b.vx=b.vy=0;state='aim';still=0;if(isSand(b.x))msg('Landed in sand — your next shot is less powerful!',2.4)}
+}
+function showOv(html){ov.innerHTML='<div class="card">'+html+'</div>';ov.hidden=false}
+function endHole(){
+  scores[hi]=strokes;
+  var t=strokes===1?'Hole in one!':strokes+' shots';
+  if(hi<HOLES-1){state='between';showOv('<h1>Hole '+(hi+1)+' done</h1><p>'+t+'</p><button id="nx">Next hole</button>');document.getElementById('nx').onclick=function(e){e.stopPropagation();hi++;ov.hidden=true;gen(hi)}}
+  else{state='done';var tot=scores.reduce(function(a,b){return a+b},0),rows='';
+    scores.forEach(function(s,i){rows+='<tr><td>Hole '+(i+1)+'</td><td>'+s+'</td></tr>'});
+    showOv('<h1>Round complete</h1><table>'+rows+'<tr><th>Total</th><th>'+tot+'</th></tr></table><p>Lower is better.</p><button id="nx">New round</button>');
+    document.getElementById('nx').onclick=function(e){e.stopPropagation();newRound()}}
+}
+function newRound(){hi=0;scores=[];ov.hidden=true;gen(0)}
+function aimVel(){var dx=(aim.px-aim.sx)/sc,dy=(aim.py-aim.sy)/sc,l=Math.hypot(dx,dy);if(l>MAXD){dx*=MAXD/l;dy*=MAXD/l;l=MAXD}return{vx:-dx*K,vy:-dy*K,len:l}}
+function pt(e){var r=cv.getBoundingClientRect();return[(e.clientX-r.left)*cv.width/r.width,(e.clientY-r.top)*cv.height/r.height]}
+stage.addEventListener('pointerdown',function(e){
+  if(e.target.closest('button'))return;e.preventDefault();
+  if(state==='intro'){ov.hidden=true;newRound();return}
+  if(state!=='aim')return;var p=pt(e);
+  aim={sx:p[0],sy:p[1],px:p[0],py:p[1],id:e.pointerId};try{stage.setPointerCapture(e.pointerId)}catch(x){}});
+stage.addEventListener('pointermove',function(e){if(!aim||e.pointerId!==aim.id)return;var p=pt(e);aim.px=p[0];aim.py=p[1]});
+function rel(e,c){if(!aim||e.pointerId!==aim.id)return;var v=aimVel();aim=null;if(!c&&state==='aim'&&v.len>12)shoot(v.vx,v.vy)}
+stage.addEventListener('pointerup',function(e){rel(e,false)});
+stage.addEventListener('pointercancel',function(e){rel(e,true)});
+
+function draw(){
+  ctx.setTransform(sc,0,0,sc,0,0);
+  ctx.fillStyle='#69b4e2';ctx.fillRect(0,0,W,H);
+  var m,i;
+  for(i=0;i<mts.length;i++){m=mts[i];var by=H;
+    ctx.fillStyle='#8c9aa5';ctx.beginPath();ctx.moveTo(m.x-m.w/2,by);ctx.lineTo(m.x,by-m.h-120);ctx.lineTo(m.x+m.w/2,by);ctx.fill();
+    ctx.fillStyle='#6d7d89';ctx.beginPath();ctx.moveTo(m.x,by-m.h-120);ctx.lineTo(m.x+m.w/2,by);ctx.lineTo(m.x+m.w/6,by);ctx.fill();
+    var cx=m.x,cy=by-m.h-120,d=(m.h+120)*.24,hw=m.w/2*.24;ctx.fillStyle='#fff';ctx.beginPath();ctx.moveTo(cx,cy);ctx.lineTo(cx+hw,cy+d);ctx.lineTo(cx+hw*.4,cy+d*.8);ctx.lineTo(cx,cy+d);ctx.lineTo(cx-hw*.45,cy+d*.8);ctx.lineTo(cx-hw,cy+d);ctx.fill();ctx.fillStyle='#d9e4ec';ctx.beginPath();ctx.moveTo(cx,cy);ctx.lineTo(cx+hw,cy+d);ctx.lineTo(cx+hw*.4,cy+d*.8);ctx.lineTo(cx,cy+d);ctx.fill()}
+  if(pond){ctx.fillStyle='#3f93d6';ctx.fillRect(pond.a,pond.y,pond.b-pond.a,H-pond.y);ctx.fillStyle='#ffffff66';ctx.fillRect(pond.a,pond.y,pond.b-pond.a,2)}
+  ctx.fillStyle='#7a3f1d';ctx.beginPath();ctx.moveTo(0,H);for(i=0;i<T.length;i++)ctx.lineTo(i*ST,T[i]);ctx.lineTo(W,H);ctx.fill();
+  ctx.lineCap='round';ctx.lineWidth=15;
+  for(i=0;i<T.length-1;i++){if(cup[i]||cup[i+1])continue;
+    ctx.strokeStyle=sand[i]?'#e6cf8b':'#8fc23a';ctx.beginPath();ctx.moveTo(i*ST,T[i]+7);ctx.lineTo((i+1)*ST,T[i+1]+7);ctx.stroke()}
+  ctx.fillStyle='#2a1608';ctx.fillRect(hole.x-11,hole.y,22,36);
+  for(i=0;i<trees.length;i++){var t=trees[i],ty=getH(t.x);if(ty>H)continue;var h=40*t.s,w=9*t.s;
+    ctx.fillStyle='#5a8d2b';ctx.beginPath();ctx.moveTo(t.x,ty-h);ctx.quadraticCurveTo(t.x+w,ty-h*.5,t.x,ty-3);ctx.quadraticCurveTo(t.x-w,ty-h*.5,t.x,ty-h);ctx.fill();
+    ctx.strokeStyle='#4a6f23';ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(t.x,ty);ctx.lineTo(t.x,ty-6);ctx.stroke()}
+  for(i=0;i<rocks.length;i++){var o=rocks[i];ctx.fillStyle='#7b8189';ctx.beginPath();ctx.arc(o.x,o.y,o.r,0,7);ctx.fill();ctx.fillStyle='#a2a9b0';ctx.beginPath();ctx.arc(o.x-o.r*.25,o.y-o.r*.3,o.r*.55,0,7);ctx.fill()}
+  ctx.strokeStyle='#8a9aa5';ctx.lineWidth=2.5;ctx.beginPath();ctx.moveTo(hole.x+1,hole.y);ctx.lineTo(hole.x+1,hole.y-62);ctx.stroke();
+  ctx.fillStyle='#ff6a1f';ctx.beginPath();ctx.moveTo(hole.x+2,hole.y-62);ctx.lineTo(hole.x+24,hole.y-55);ctx.lineTo(hole.x+2,hole.y-48);ctx.fill();
+  ctx.fillStyle='#1a0d04';ctx.fillRect(hole.x-11,hole.y-1,22,3);
+  if(aim&&state==='aim'){var v=aimVel(),px=ball.x,py=ball.y;
+    for(var tt=.05,tm=.5+.5*v.len/MAXD;tt<tm;tt+=.055){var x=px+v.vx*tt,y=py+v.vy*tt+.5*G*tt*tt;if(y>getH(x)||x<0||x>W)break;
+      ctx.fillStyle='rgba(255,255,255,'+Math.max(0,1-tt/tm)+')';ctx.beginPath();ctx.arc(x,y,3*(1-.5*tt/tm),0,7);ctx.fill()}
+    ctx.strokeStyle='#ffffff55';ctx.lineWidth=3;ctx.beginPath();ctx.moveTo(px,py);ctx.lineTo(px-v.vx/K,py-v.vy/K);ctx.stroke()}
+  var bx=ball.x,by2=ball.y,br=R;
+  if(state==='holed'){var q=Math.min(1,sinkT/.5);by2=hole.y+q*14;br=R*(1-q*.4)}
+  ctx.fillStyle='#fff';ctx.beginPath();ctx.arc(bx,by2,br,0,7);ctx.fill();
+  ctx.fillStyle='#fff';ctx.strokeStyle='#0006';ctx.lineWidth=3;ctx.font='700 26px Orbitron,Trebuchet MS,sans-serif';ctx.textAlign='left';
+  ctx.shadowColor='#0004';ctx.shadowBlur=4;ctx.fillText('Hole '+(hi+1)+'/'+HOLES,18,38);
+  ctx.font='700 18px Orbitron,Trebuchet MS,sans-serif';ctx.fillText('Shots: '+strokes,18,64);
+  var tot=scores.reduce(function(a,b){return a+b},0);ctx.textAlign='right';ctx.fillText('Total: '+(tot+(state==='done'?0:strokes)),W-18,38);
+  if(toastT>0){ctx.textAlign='center';ctx.font='700 24px Orbitron,Trebuchet MS,sans-serif';ctx.fillText(toast,W/2,90)}
+  ctx.shadowBlur=0;
+}
+var lt=0;
+function frame(t){
+  var dt=Math.min(.033,(t-lt)/1000||0);lt=t;
+  if(toastT>0)toastT-=dt;
+  if(state==='roll'){rollT+=dt;var n=Math.ceil(dt/(1/240)),d=dt/n;for(var i=0;i<n&&state==='roll';i++)step(d);if(rollT>25&&state==='roll'){ball.vx=ball.vy=0;state='aim';if(isSand(ball.x))msg('Landed in sand — your next shot is less powerful!',2.4)}}
+  else if(state==='holed'){sinkT+=dt;if(sinkT>.8){state='wait';endHole()}}
+  draw();requestAnimationFrame(frame);
+}
+window.addEventListener('resize',resize);resize();gen(0);state='intro';
+showOv('<h1>Pullback Golf</h1><p>Press anywhere, pull back and release to shoot.<br>Dots show the start of your arc.</p><p>5 random holes. Fewest shots wins. Avoid water, sand and rocks.<br>Shots out of sand are less powerful.</p><button id="go">Tee off</button>');
+document.getElementById('go').onclick=function(e){e.stopPropagation();ov.hidden=true;newRound()};
+requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>
